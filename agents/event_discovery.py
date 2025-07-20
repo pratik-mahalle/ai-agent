@@ -22,25 +22,85 @@ class EventDiscoveryAgent(BaseAgent):
             description="Discovers cloud-native events from Linux Foundation and CNCF"
         )
         
-        # Event sources
+        # Event sources with more specific URLs
         self.sources = {
             'linux_foundation': {
                 'url': 'https://www.linuxfoundation.org/events/',
-                'name': 'Linux Foundation Events'
+                'name': 'Linux Foundation Events',
+                'fallback_urls': [
+                    'https://events.linuxfoundation.org/',
+                    'https://www.linuxfoundation.org/events/upcoming-events/'
+                ]
             },
             'cncf': {
                 'url': 'https://www.cncf.io/events/',
-                'name': 'CNCF Events'
+                'name': 'CNCF Events',
+                'fallback_urls': [
+                    'https://www.cncf.io/events/upcoming-events/',
+                    'https://www.cncf.io/events/past-events/'
+                ]
             },
             'kubecon': {
                 'url': 'https://events.linuxfoundation.org/kubecon-cloudnativecon-north-america/',
-                'name': 'KubeCon Events'
+                'name': 'KubeCon Events',
+                'fallback_urls': [
+                    'https://events.linuxfoundation.org/kubecon-cloudnativecon-europe/',
+                    'https://events.linuxfoundation.org/kubecon-cloudnativecon-china/'
+                ]
             }
         }
         
         # Event cache
         self.event_cache = {}
         self.cache_expiry = timedelta(hours=6)
+        
+        # Sample data for testing when web scraping fails
+        self.sample_events = [
+            {
+                'id': 'kubecon_na_2024',
+                'title': 'KubeCon + CloudNativeCon North America 2024',
+                'date': 'November 12-15, 2024',
+                'location': 'Salt Lake City, Utah',
+                'description': 'The Cloud Native Computing Foundation\'s flagship conference bringing together adopters and technologists from leading open source and cloud native communities.',
+                'url': 'https://events.linuxfoundation.org/kubecon-cloudnativecon-north-america/',
+                'source': 'kubecon',
+                'type': 'conference',
+                'relevance_score': 10.0
+            },
+            {
+                'id': 'kubecon_eu_2024',
+                'title': 'KubeCon + CloudNativeCon Europe 2024',
+                'date': 'March 19-22, 2024',
+                'location': 'Paris, France',
+                'description': 'The largest open source developer conference in Europe focused on cloud native applications and Kubernetes.',
+                'url': 'https://events.linuxfoundation.org/kubecon-cloudnativecon-europe/',
+                'source': 'kubecon',
+                'type': 'conference',
+                'relevance_score': 10.0
+            },
+            {
+                'id': 'cncf_webinar_2024',
+                'title': 'CNCF Webinar: Kubernetes Security Best Practices',
+                'date': 'January 15, 2024',
+                'location': 'Virtual',
+                'description': 'Learn about the latest security best practices for Kubernetes clusters and containerized applications.',
+                'url': 'https://www.cncf.io/events/',
+                'source': 'cncf',
+                'type': 'webinar',
+                'relevance_score': 8.0
+            },
+            {
+                'id': 'lf_workshop_2024',
+                'title': 'Linux Foundation Workshop: Cloud Native Development',
+                'date': 'February 20-22, 2024',
+                'location': 'San Francisco, CA',
+                'description': 'Hands-on workshop covering cloud native development practices, tools, and methodologies.',
+                'url': 'https://www.linuxfoundation.org/events/',
+                'source': 'linux_foundation',
+                'type': 'workshop',
+                'relevance_score': 7.0
+            }
+        ]
     
     async def process_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """Process event discovery requests."""
@@ -84,6 +144,11 @@ class EventDiscoveryAgent(BaseAgent):
                 except Exception as e:
                     self.log_activity(f"Error scraping {source_id}: {str(e)}")
             
+            # If no events found from web scraping, use sample data
+            if not all_events:
+                self.log_activity("No events found from web scraping, using sample data")
+                all_events = self.sample_events.copy()
+            
             # Process and enrich events
             processed_events = await self._process_events(all_events)
             
@@ -99,7 +164,7 @@ class EventDiscoveryAgent(BaseAgent):
             return {
                 'success': True,
                 'events': processed_events,
-                'source': 'live',
+                'source': 'live' if all_events != self.sample_events else 'sample',
                 'timestamp': datetime.now().isoformat()
             }
             
@@ -170,103 +235,242 @@ class EventDiscoveryAgent(BaseAgent):
         """Scrape events from a specific source."""
         events = []
         
-        async with aiohttp.ClientSession() as session:
-            async with session.get(source_info['url']) as response:
-                if response.status == 200:
-                    html = await response.text()
-                    soup = BeautifulSoup(html, 'html.parser')
-                    
-                    if source_id == 'linux_foundation':
-                        events = self._parse_linux_foundation_events(soup)
-                    elif source_id == 'cncf':
-                        events = self._parse_cncf_events(soup)
-                    elif source_id == 'kubecon':
-                        events = self._parse_kubecon_events(soup)
+        # Try main URL first
+        events = await self._scrape_url(source_info['url'], source_id)
+        
+        # If no events found, try fallback URLs
+        if not events and 'fallback_urls' in source_info:
+            for fallback_url in source_info['fallback_urls']:
+                try:
+                    fallback_events = await self._scrape_url(fallback_url, source_id)
+                    events.extend(fallback_events)
+                    if fallback_events:
+                        break
+                except Exception as e:
+                    self.log_activity(f"Error scraping fallback URL {fallback_url}: {str(e)}")
         
         return events
     
-    def _parse_linux_foundation_events(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
-        """Parse Linux Foundation events."""
+    async def _scrape_url(self, url: str, source_id: str) -> List[Dict[str, Any]]:
+        """Scrape events from a specific URL."""
         events = []
         
-        # Look for event cards/containers
-        event_containers = soup.find_all(['div', 'article'], class_=re.compile(r'event|card|item'))
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (compatible; CloudNativeAIAgent/1.0)',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+        }
         
-        for container in event_containers:
+        timeout = aiohttp.ClientTimeout(total=30)
+        
+        async with aiohttp.ClientSession(headers=headers, timeout=timeout) as session:
             try:
-                event = self._extract_event_data(container, 'linux_foundation')
-                if event:
-                    events.append(event)
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        html = await response.text()
+                        soup = BeautifulSoup(html, 'html.parser')
+                        
+                        if source_id == 'linux_foundation':
+                            events = self._parse_linux_foundation_events(soup, url)
+                        elif source_id == 'cncf':
+                            events = self._parse_cncf_events(soup, url)
+                        elif source_id == 'kubecon':
+                            events = self._parse_kubecon_events(soup, url)
+                    else:
+                        self.log_activity(f"HTTP {response.status} for {url}")
             except Exception as e:
-                self.log_activity(f"Error parsing Linux Foundation event: {str(e)}")
+                self.log_activity(f"Error scraping {url}: {str(e)}")
         
         return events
     
-    def _parse_cncf_events(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
-        """Parse CNCF events."""
+    def _parse_linux_foundation_events(self, soup: BeautifulSoup, base_url: str) -> List[Dict[str, Any]]:
+        """Parse Linux Foundation events with improved selectors."""
         events = []
         
-        # Look for event containers
-        event_containers = soup.find_all(['div', 'article'], class_=re.compile(r'event|card|item'))
+        # Multiple selectors for different page structures
+        selectors = [
+            'div[class*="event"]',
+            'div[class*="card"]',
+            'article[class*="event"]',
+            'div[class*="item"]',
+            'li[class*="event"]',
+            '.event-item',
+            '.event-card',
+            '.upcoming-event',
+            '[data-event]'
+        ]
         
-        for container in event_containers:
-            try:
-                event = self._extract_event_data(container, 'cncf')
-                if event:
-                    events.append(event)
-            except Exception as e:
-                self.log_activity(f"Error parsing CNCF event: {str(e)}")
+        for selector in selectors:
+            containers = soup.select(selector)
+            if containers:
+                for container in containers:
+                    try:
+                        event = self._extract_event_data(container, 'linux_foundation', base_url)
+                        if event:
+                            events.append(event)
+                    except Exception as e:
+                        self.log_activity(f"Error parsing Linux Foundation event: {str(e)}")
+                break  # If we found events with one selector, don't try others
         
         return events
     
-    def _parse_kubecon_events(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
-        """Parse KubeCon events."""
+    def _parse_cncf_events(self, soup: BeautifulSoup, base_url: str) -> List[Dict[str, Any]]:
+        """Parse CNCF events with improved selectors."""
         events = []
         
-        # Look for KubeCon specific event containers
-        event_containers = soup.find_all(['div', 'article'], class_=re.compile(r'event|card|item|kubecon'))
+        # Multiple selectors for different page structures
+        selectors = [
+            'div[class*="event"]',
+            'div[class*="card"]',
+            'article[class*="event"]',
+            '.event-item',
+            '.event-card',
+            '.upcoming-event',
+            '[data-event]',
+            'div[class*="webinar"]'
+        ]
         
-        for container in event_containers:
-            try:
-                event = self._extract_event_data(container, 'kubecon')
-                if event:
-                    events.append(event)
-            except Exception as e:
-                self.log_activity(f"Error parsing KubeCon event: {str(e)}")
+        for selector in selectors:
+            containers = soup.select(selector)
+            if containers:
+                for container in containers:
+                    try:
+                        event = self._extract_event_data(container, 'cncf', base_url)
+                        if event:
+                            events.append(event)
+                    except Exception as e:
+                        self.log_activity(f"Error parsing CNCF event: {str(e)}")
+                break
         
         return events
     
-    def _extract_event_data(self, container, source: str) -> Optional[Dict[str, Any]]:
-        """Extract event data from a container element."""
+    def _parse_kubecon_events(self, soup: BeautifulSoup, base_url: str) -> List[Dict[str, Any]]:
+        """Parse KubeCon events with improved selectors."""
+        events = []
+        
+        # Multiple selectors for different page structures
+        selectors = [
+            'div[class*="kubecon"]',
+            'div[class*="event"]',
+            'div[class*="card"]',
+            'article[class*="event"]',
+            '.event-item',
+            '.event-card',
+            '.kubecon-event',
+            '[data-event]'
+        ]
+        
+        for selector in selectors:
+            containers = soup.select(selector)
+            if containers:
+                for container in containers:
+                    try:
+                        event = self._extract_event_data(container, 'kubecon', base_url)
+                        if event:
+                            events.append(event)
+                    except Exception as e:
+                        self.log_activity(f"Error parsing KubeCon event: {str(e)}")
+                break
+        
+        return events
+    
+    def _extract_event_data(self, container, source: str, base_url: str) -> Optional[Dict[str, Any]]:
+        """Extract event data from a container element with improved logic."""
         try:
-            # Extract title
-            title_elem = container.find(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
-            title = title_elem.get_text(strip=True) if title_elem else None
+            # Extract title with multiple strategies
+            title = None
+            title_selectors = [
+                'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                '[class*="title"]',
+                '[class*="name"]',
+                '.event-title',
+                '.event-name'
+            ]
             
-            # Extract date
-            date_elem = container.find(['time', 'span', 'div'], class_=re.compile(r'date|time'))
-            date_str = date_elem.get_text(strip=True) if date_elem else None
+            for selector in title_selectors:
+                title_elem = container.select_one(selector)
+                if title_elem:
+                    title = title_elem.get_text(strip=True)
+                    if title and len(title) > 5:  # Ensure it's not just whitespace
+                        break
+            
+            # Extract date with multiple strategies
+            date_str = None
+            date_selectors = [
+                'time',
+                '[class*="date"]',
+                '[class*="time"]',
+                '.event-date',
+                '.event-time',
+                '[datetime]'
+            ]
+            
+            for selector in date_selectors:
+                date_elem = container.select_one(selector)
+                if date_elem:
+                    # Try datetime attribute first
+                    date_str = date_elem.get('datetime') or date_elem.get_text(strip=True)
+                    if date_str and len(date_str) > 3:
+                        break
             
             # Extract location
-            location_elem = container.find(['span', 'div'], class_=re.compile(r'location|venue|place'))
-            location = location_elem.get_text(strip=True) if location_elem else None
+            location = None
+            location_selectors = [
+                '[class*="location"]',
+                '[class*="venue"]',
+                '[class*="place"]',
+                '.event-location',
+                '.event-venue'
+            ]
+            
+            for selector in location_selectors:
+                location_elem = container.select_one(selector)
+                if location_elem:
+                    location = location_elem.get_text(strip=True)
+                    if location and len(location) > 2:
+                        break
             
             # Extract description
-            desc_elem = container.find(['p', 'div'], class_=re.compile(r'description|summary|excerpt'))
-            description = desc_elem.get_text(strip=True) if desc_elem else None
+            description = None
+            desc_selectors = [
+                '[class*="description"]',
+                '[class*="summary"]',
+                '[class*="excerpt"]',
+                '.event-description',
+                '.event-summary',
+                'p'
+            ]
+            
+            for selector in desc_selectors:
+                desc_elem = container.select_one(selector)
+                if desc_elem:
+                    description = desc_elem.get_text(strip=True)
+                    if description and len(description) > 10:
+                        break
             
             # Extract URL
-            link_elem = container.find('a', href=True)
-            url = link_elem['href'] if link_elem else None
+            url = None
+            link_elem = container.select_one('a[href]')
+            if link_elem:
+                href = link_elem['href']
+                if href.startswith('http'):
+                    url = href
+                elif href.startswith('/'):
+                    url = base_url.rstrip('/') + href
+                else:
+                    url = base_url.rstrip('/') + '/' + href
             
-            if title and date_str:
+            # Create event if we have at least a title
+            if title:
                 return {
                     'id': f"{source}_{hash(title)}",
                     'title': title,
-                    'date': date_str,
-                    'location': location,
-                    'description': description,
-                    'url': url,
+                    'date': date_str or 'TBD',
+                    'location': location or 'TBD',
+                    'description': description or 'No description available',
+                    'url': url or base_url,
                     'source': source,
                     'type': 'conference' if 'kubecon' in source.lower() else 'event'
                 }

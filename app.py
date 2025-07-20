@@ -245,7 +245,6 @@ class CloudNativeAIAgent:
                             st.markdown(f"[🔗 Event Website]({event['url']})")
                         
                         if st.button(f"Get Details", key=f"details_{i}"):
-                            import asyncio
                             asyncio.run(self._get_event_details(event))
         else:
             st.info("No events discovered yet. Click 'Discover Events' to start!")
@@ -277,7 +276,6 @@ class CloudNativeAIAgent:
             submitted = st.form_submit_button("🚀 Generate Proposal")
             
             if submitted:
-                import asyncio
                 asyncio.run(self._generate_proposal(topic, speaker_expertise, target_audience, talk_type, event_context))
         
         # Display generated proposals
@@ -299,7 +297,6 @@ class CloudNativeAIAgent:
                     col1, col2 = st.columns(2)
                     with col1:
                         if st.button(f"Improve Proposal", key=f"improve_{i}"):
-                            import asyncio
                             asyncio.run(self._improve_proposal(proposal))
                     with col2:
                         if st.button(f"Export", key=f"export_{i}"):
@@ -316,7 +313,6 @@ class CloudNativeAIAgent:
             st.subheader("Available Scholarship Programs")
             
             if st.button("🔍 Get Scholarship Info"):
-                import asyncio
                 asyncio.run(self._get_scholarship_info())
         
         with tab2:
@@ -336,8 +332,8 @@ class CloudNativeAIAgent:
                     community_involvement = st.checkbox("I am involved in the community")
                 
                 if st.form_submit_button("✅ Check Eligibility"):
-                    self._check_eligibility(is_student, is_early_career, financial_need, 
-                                          is_underrepresented, previously_awarded, community_involvement)
+                    asyncio.run(self._check_eligibility(is_student, is_early_career, financial_need, 
+                                          is_underrepresented, previously_awarded, community_involvement))
         
         with tab3:
             st.subheader("Generate Application")
@@ -347,7 +343,7 @@ class CloudNativeAIAgent:
                                             placeholder="Your background, experience, goals...")
                 
                 if st.form_submit_button("📝 Generate Application"):
-                    self._generate_scholarship_application(applicant_info)
+                    asyncio.run(self._generate_scholarship_application(applicant_info))
     
     def _show_travel_funding_page(self):
         """Show the travel funding page."""
@@ -359,7 +355,7 @@ class CloudNativeAIAgent:
             st.subheader("Available Travel Funding")
             
             if st.button("🔍 Get Funding Sources"):
-                self._get_travel_funding_sources()
+                asyncio.run(self._get_travel_funding_sources())
         
         with tab2:
             st.subheader("Estimate Travel Costs")
@@ -378,8 +374,8 @@ class CloudNativeAIAgent:
                     is_domestic = st.checkbox("Domestic travel")
                 
                 if st.form_submit_button("💸 Estimate Costs"):
-                    self._estimate_travel_costs(event_location, departure_location, event_duration, 
-                                              accommodation_preference, is_domestic)
+                    asyncio.run(self._estimate_travel_costs(event_location, departure_location, event_duration, 
+                                              accommodation_preference, is_domestic))
         
         with tab3:
             st.subheader("Generate Funding Application")
@@ -391,7 +387,7 @@ class CloudNativeAIAgent:
                                                  placeholder="Your financial need and constraints...")
                 
                 if st.form_submit_button("📝 Generate Application"):
-                    self._generate_travel_funding_application(event_details, financial_situation)
+                    asyncio.run(self._generate_travel_funding_application(event_details, financial_situation))
     
     def _show_settings_page(self):
         """Show the settings page."""
