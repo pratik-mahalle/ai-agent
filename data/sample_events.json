@@ -1,0 +1,80 @@
+[
+  {
+    "id": "kubecon_na_2024",
+    "title": "KubeCon + CloudNativeCon North America 2024",
+    "date": "November 12-15, 2024",
+    "location": "Salt Lake City, Utah",
+    "description": "The largest gathering of Kubernetes and cloud-native technology enthusiasts in North America.",
+    "url": "https://events.linuxfoundation.org/kubecon-cloudnativecon-north-america/",
+    "source": "kubecon",
+    "type": "conference",
+    "relevance_score": 10.0,
+    "deadlines": {
+      "cfp_deadline": "June 15, 2024",
+      "registration_deadline": "October 15, 2024",
+      "scholarship_deadline": "August 1, 2024"
+    }
+  },
+  {
+    "id": "kubecon_eu_2024",
+    "title": "KubeCon + CloudNativeCon Europe 2024",
+    "date": "March 19-22, 2024",
+    "location": "Paris, France",
+    "description": "The premier cloud-native conference in Europe, bringing together developers, operators, and architects.",
+    "url": "https://events.linuxfoundation.org/kubecon-cloudnativecon-europe/",
+    "source": "kubecon",
+    "type": "conference",
+    "relevance_score": 10.0,
+    "deadlines": {
+      "cfp_deadline": "October 15, 2023",
+      "registration_deadline": "February 15, 2024",
+      "scholarship_deadline": "December 1, 2023"
+    }
+  },
+  {
+    "id": "cncf_workshop_2024",
+    "title": "CNCF Cloud-Native Security Workshop",
+    "date": "February 15-16, 2024",
+    "location": "San Francisco, CA",
+    "description": "Hands-on workshop covering security best practices in cloud-native environments.",
+    "url": "https://www.cncf.io/events/",
+    "source": "cncf",
+    "type": "workshop",
+    "relevance_score": 8.5,
+    "deadlines": {
+      "registration_deadline": "January 15, 2024",
+      "scholarship_deadline": "December 1, 2023"
+    }
+  },
+  {
+    "id": "linux_foundation_summit_2024",
+    "title": "Open Source Summit North America 2024",
+    "date": "April 16-18, 2024",
+    "location": "Seattle, WA",
+    "description": "Premier open source event covering cloud-native, Linux, and open source technologies.",
+    "url": "https://events.linuxfoundation.org/open-source-summit-north-america/",
+    "source": "linux_foundation",
+    "type": "conference",
+    "relevance_score": 7.5,
+    "deadlines": {
+      "cfp_deadline": "January 15, 2024",
+      "registration_deadline": "March 15, 2024",
+      "scholarship_deadline": "February 1, 2024"
+    }
+  },
+  {
+    "id": "istio_con_2024",
+    "title": "IstioCon 2024",
+    "date": "May 7-9, 2024",
+    "location": "Virtual",
+    "description": "The official Istio community conference covering service mesh technologies and best practices.",
+    "url": "https://events.istio.io/istiocon-2024/",
+    "source": "cncf",
+    "type": "conference",
+    "relevance_score": 9.0,
+    "deadlines": {
+      "cfp_deadline": "February 15, 2024",
+      "registration_deadline": "April 15, 2024"
+    }
+  }
+] 
